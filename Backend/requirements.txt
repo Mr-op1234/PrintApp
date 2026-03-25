@@ -1,0 +1,15 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+gradio==4.16.0
+huggingface_hub==0.20.3
+aiofiles==23.2.1
+
+# Server-side processing (for web requests)
+PyPDF2==3.0.1
+reportlab==4.1.0
+# pytesseract removed - OCR now handled manually by Xerox Manager
+Pillow==10.2.0
+
+# Firebase Cloud Messaging (Push Notifications)
+firebase-admin==6.4.0

@@ -1,0 +1,57 @@
+# ===========================================
+# SECURITY: Sensitive files - NEVER commit
+# ===========================================
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ===========================================
+# User data - Contains PII
+# ===========================================
+uploads/
+logs/
+*.log
+
+# ===========================================
+# Python artifacts
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===========================================
+# IDE and OS
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.sublime-*
+
+# ===========================================
+# Temporary files
+# ===========================================
+*.tmp
+*.temp
+*.bak

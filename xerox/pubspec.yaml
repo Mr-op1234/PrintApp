@@ -1,0 +1,61 @@
+name: xerox
+description: "Xerox Shop Manager - Desktop Order Receiving & Print Management"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Icons
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+
+  # WebSocket
+  web_socket_channel: ^2.4.0
+  
+  # HTTP Client
+  http: ^1.1.0
+
+  # Local Database
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
+  path: ^1.8.3
+
+  # File & Directory Management
+  path_provider: ^2.1.1
+  open_file: ^3.3.2
+  file_picker: ^6.1.1
+
+  # Printing
+  printing: ^5.11.1
+  pdf: ^3.10.7
+
+  # Utilities
+  intl: ^0.18.1
+  uuid: ^3.0.7
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: false
+  ios: false
+  windows:
+    generate: true
+    icon_size: 256
+    image_path: "assets/icons/app_icon.png"
+
+flutter:
+  uses-material-design: true

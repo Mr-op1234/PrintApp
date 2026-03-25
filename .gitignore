@@ -1,0 +1,32 @@
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Node
+node_modules/
+npm-debug.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+
+# Firebase / Secrets
+google-services.json
+GoogleService-Info.plist
+.env
+.env.local
+firebase_credentials.json
