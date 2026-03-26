@@ -30,3 +30,5 @@ GoogleService-Info.plist
 .env
 .env.local
 firebase_credentials.json
+AgentLogs.md
+student/build_log.txt

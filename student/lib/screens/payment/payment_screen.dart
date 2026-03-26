@@ -5,7 +5,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:gal/gal.dart';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import '../../config/theme.dart';
 import '../../config/app_config.dart';
 import '../../providers/providers.dart';
@@ -24,27 +26,80 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   bool _isLoading = false;
   String? _selectedApp;
 
-  String get _upiUri {
+  String get _qrUpiUri {
     final totalPrice = ref.read(totalPriceProvider);
     final orderId = 'PO${DateTime.now().millisecondsSinceEpoch}';
     return 'upi://pay?pa=${AppConfig.upiId}&pn=${Uri.encodeComponent(AppConfig.upiMerchantName)}&am=${totalPrice.toStringAsFixed(2)}&cu=INR&tn=${Uri.encodeComponent("Print Order $orderId")}';
   }
 
-  Future<void> _launchUpiApp(String packageName) async {
-    setState(() {
-      _selectedApp = packageName;
-      _isLoading = true;
-    });
-
+  Future<void> _saveQrAndOpenUpi() async {
+    setState(() => _isLoading = true);
+    
     try {
-      final uri = Uri.parse(_upiUri);
+      final qrPainter = QrPainter(
+        data: _qrUpiUri,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.M,
+        gapless: false,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0xFFFFFFFF),
+      );
+      
+      // Generate QR code Image
+      final ui.Image qrImage = await qrPainter.toImage(400);
+      
+      // Create a larger white canvas to place the QR code with borders
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      const double canvasSize = 600.0;
+      const double qrSize = 400.0;
+      
+      // Draw white background
+      final paint = ui.Paint()..color = Colors.white;
+      canvas.drawRect(const ui.Rect.fromLTWH(0, 0, canvasSize, canvasSize), paint);
+      
+      // Center the QR image on the canvas
+      final offset = (canvasSize - qrSize) / 2.0;
+      canvas.drawImage(qrImage, ui.Offset(offset, offset), ui.Paint());
+      
+      final picture = recorder.endRecording();
+      final ui.Image finalImage = await picture.toImage(canvasSize.toInt(), canvasSize.toInt());
+      final ByteData? byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        final Uint8List pngBytes = byteData.buffer.asUint8List();
+        
+        bool hasAccess = await Gal.hasAccess(toAlbum: true);
+        if (!hasAccess) {
+          hasAccess = await Gal.requestAccess(toAlbum: true);
+        }
+        
+        if (hasAccess) {
+          await Gal.putImageBytes(
+            pngBytes, 
+            album: 'PrintApp',
+          );
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('QR Code saved to gallery!'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+      
+      final uri = Uri.parse("upi://pay");
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Could not launch UPI app'),
+              content: Text('No generic UPI app handler found.'),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -54,13 +109,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('Error saving QR Code: $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -96,6 +151,66 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _generateOfflinePayment() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      final size = const ui.Size(800, 600);
+      
+      // Draw white background
+      final paint = ui.Paint()..color = Colors.white;
+      canvas.drawRect(ui.Rect.fromLTWH(0, 0, size.width, size.height), paint);
+      
+      // Draw text
+      final textPainter = TextPainter(
+        text: const TextSpan(
+          text: 'Payment to be done Offline',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 40,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout(maxWidth: size.width);
+      textPainter.paint(
+        canvas,
+        ui.Offset(
+          (size.width - textPainter.width) / 2,
+          (size.height - textPainter.height) / 2,
+        ),
+      );
+      
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(size.width.toInt(), size.height.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VerificationScreen(screenshotBytes: bytes),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating offline payment: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -146,11 +261,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
                   // UPI ID Card
                   _buildUpiIdCard(),
-
-                  const SizedBox(height: AppTheme.spacingLG),
-
-                  // UPI Apps Section
-                  _buildUpiAppsSection(),
 
                   const SizedBox(height: AppTheme.spacingLG),
 
@@ -210,19 +320,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
           ),
           const SizedBox(height: AppTheme.spacingMD),
-          Container(
-            padding: const EdgeInsets.all(AppTheme.spacingMD),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-            ),
-            child: QrImageView(
-              data: _upiUri,
-              version: QrVersions.auto,
-              size: 200,
-              backgroundColor: Colors.white,
-              errorStateBuilder: (context, error) => const Center(
-                child: Text('Error generating QR code'),
+          InkWell(
+            onTap: _saveQrAndOpenUpi,
+            child: Container(
+              padding: const EdgeInsets.all(AppTheme.spacingMD),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+              ),
+              child: QrImageView(
+                data: _qrUpiUri,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
+                errorStateBuilder: (context, error) => const Center(
+                  child: Text('Error generating QR code'),
+                ),
               ),
             ),
           ).animate()
@@ -292,43 +405,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     ).animate().fadeIn(delay: 200.ms);
   }
 
-  Widget _buildUpiAppsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Pay with App',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: AppTheme.spacingMD),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _launchUpiApp('UPI'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-              ),
-            ),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text(
-              'Open UPI App',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ],
-    ).animate().fadeIn(delay: 300.ms);
-  }
 
   Widget _buildInstructions() {
     return GlassCard(
@@ -347,7 +423,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ],
           ),
           const SizedBox(height: AppTheme.spacingMD),
-          _buildInstructionStep(1, 'Scan QR code or tap a UPI app above'),
+          _buildInstructionStep(1, 'Tap the QR code to save to gallery and open UPI'),
           _buildInstructionStep(2, 'Complete the payment in your UPI app'),
           _buildInstructionStep(3, 'Take a screenshot of the payment confirmation'),
           _buildInstructionStep(4, 'Tap "Upload Screenshot" below to verify'),
@@ -403,15 +479,43 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: GradientButton(
-            text: 'Upload Payment Screenshot',
-            icon: Icons.upload,
-            isLoading: _isLoading,
-            onPressed: _captureScreenshot,
-            gradient: AppTheme.accentGradient,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: GradientButton(
+                text: 'Upload Payment Screenshot',
+                icon: Icons.upload,
+                isLoading: _isLoading,
+                onPressed: _captureScreenshot,
+                gradient: AppTheme.accentGradient,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingSM),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : _generateOfflinePayment,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: AppTheme.primaryColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                  ),
+                ),
+                icon: const Icon(Icons.money_off, color: AppTheme.primaryColor),
+                label: const Text(
+                  'Pay Offline (Cash)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

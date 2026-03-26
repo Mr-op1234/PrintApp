@@ -118,7 +118,14 @@ class ApiService {
     final formData = FormData();
     
     // Add metadata JSON
-    formData.fields.add(MapEntry('metadata', order.toJsonString()));
+    // We modify copies to 1 because the PDF is already duplicated locally, 
+    // ensuring the Xerox printer outputs exactly 1 copy of the merged file.
+    final metadataMap = order.toJson();
+    if (metadataMap['config'] != null) {
+      metadataMap['config']['copies'] = 1;
+    }
+    
+    formData.fields.add(MapEntry('metadata', jsonEncode(metadataMap)));
     formData.fields.add(MapEntry('platform', PlatformUtils.platformName));
     formData.fields.add(MapEntry('processing_mode', 'local'));
     

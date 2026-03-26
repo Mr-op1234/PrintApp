@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -443,9 +444,16 @@ class OrderProcessingNotifier extends StateNotifier<ProcessingState> {
         log('  Doc $i: ${documentBytesList[i].length} bytes');
       }
 
+      // Duplicate documents in mobile app per user request
+      log('Duplicating documents ${config.copies} times...');
+      final List<Uint8List> duplicatedDocuments = [];
+      for (int c = 0; c < config.copies; c++) {
+        duplicatedDocuments.addAll(documentBytesList);
+      }
+
       final mergedPdfBytes = await PdfService.mergeWithFrontPage(
         frontPageBytes,
-        documentBytesList,
+        duplicatedDocuments,
         onLog: onLog,
       ).timeout(
         const Duration(seconds: 60),
@@ -474,10 +482,24 @@ class OrderProcessingNotifier extends StateNotifier<ProcessingState> {
         );
         
         // Clear form state using delayed future to ensure we're out of any build cycle
-        Future.delayed(Duration.zero, () {
+        Future.delayed(Duration.zero, () async {
           _ref.read(selectedFilesProvider.notifier).clearFiles();
           _ref.read(printConfigProvider.notifier).reset();
           _ref.read(paymentVerificationProvider.notifier).clear();
+          
+          // Cleanup all files from PrintApp Gallery album
+          try {
+             final dir = Directory('/storage/emulated/0/Pictures/PrintApp');
+             if (await dir.exists()) {
+                for (var entity in dir.listSync()) {
+                   if (entity is File) {
+                      await entity.delete();
+                   }
+                }
+             }
+          } catch(e) {
+             if (kDebugMode) debugPrint('Could not delete files: $e');
+          }
         });
         
         return order.copyWith(status: 'completed');
@@ -503,13 +525,27 @@ class OrderProcessingNotifier extends StateNotifier<ProcessingState> {
         
         // Use Future.delayed to ensure we're in a new event loop iteration
         // This prevents "modify provider during build" errors
-        Future.delayed(Duration.zero, () {
+        Future.delayed(Duration.zero, () async {
           // Refresh pending orders list (use sync since we're already in delayed callback)
           _ref.read(pendingOrdersProvider.notifier).refreshSync();
           // Clear form state
           _ref.read(selectedFilesProvider.notifier).clearFiles();
           _ref.read(printConfigProvider.notifier).reset();
           _ref.read(paymentVerificationProvider.notifier).clear();
+          
+          // Cleanup all files from PrintApp Gallery album
+          try {
+             final dir = Directory('/storage/emulated/0/Pictures/PrintApp');
+             if (await dir.exists()) {
+                for (var entity in dir.listSync()) {
+                   if (entity is File) {
+                      await entity.delete();
+                   }
+                }
+             }
+          } catch(e) {
+             if (kDebugMode) debugPrint('Could not delete files: $e');
+          }
         });
         
         return queuedOrder;
